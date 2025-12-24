@@ -120,7 +120,7 @@ if __name__ == "__main__":
             print(f"  URL: {post.url}")
             print(f"  Published: {post.published_at}")
             if post.description:
-                preview = post.description[:150] + "..." if len(post.description) > 150 else post.description
+                preview = post.description[:500] + "..." if len(post.description) > 500 else post.description
                 print(f"  Preview: {preview}")
     else:
         print("\nNo posts found in the last 24 hours.")

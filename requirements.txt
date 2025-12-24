@@ -8,3 +8,4 @@ python-dotenv>=1.0.0
 trafilatura>=1.6.0
 lxml>=5.0.0
 
+

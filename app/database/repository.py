@@ -149,6 +149,20 @@ class Repository:
             return True
         return False
     
+    def get_x_posts_without_markdown(self, limit: Optional[int] = None) -> List[XPost]:
+        query = self.session.query(XPost).filter(XPost.markdown.is_(None))
+        if limit:
+            query = query.limit(limit)
+        return query.all()
+    
+    def update_x_post_markdown(self, guid: str, markdown: str) -> bool:
+        post = self.session.query(XPost).filter_by(guid=guid).first()
+        if post:
+            post.markdown = markdown
+            self.session.commit()
+            return True
+        return False
+    
     def get_youtube_videos_without_transcript(self, limit: Optional[int] = None) -> List[YouTubeVideo]:
         query = self.session.query(YouTubeVideo).filter(YouTubeVideo.transcript.is_(None))
         if limit:
@@ -213,6 +227,21 @@ class Repository:
                     "url": article.url,
                     "content": article.markdown or article.description or "",
                     "published_at": article.published_at
+                })
+        
+        x_posts = self.session.query(XPost).filter(
+            XPost.markdown.isnot(None)
+        ).all()
+        for post in x_posts:
+            key = f"x:{post.guid}"
+            if key not in seen_ids:
+                articles.append({
+                    "type": "x",
+                    "id": post.guid,
+                    "title": post.title,
+                    "url": post.url,
+                    "content": post.markdown or post.description or "",
+                    "published_at": post.published_at
                 })
         
         if limit:

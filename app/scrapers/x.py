@@ -108,7 +108,7 @@ if __name__ == "__main__":
     print("Starting X.com scraper...")
     print("="*60)
     
-    posts: List[XPost] = scraper.get_posts(hours=24)
+    posts: List[XPost] = scraper.get_posts(hours=50)
     
     print("="*60)
     print(f"Found {len(posts)} posts in the last 24 hours")

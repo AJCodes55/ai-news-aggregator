@@ -54,6 +54,7 @@ class XPost(Base):
     published_at = Column(DateTime, nullable=False)
     author = Column(String, nullable=False)
     category = Column(String, nullable=True)
+    markdown = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

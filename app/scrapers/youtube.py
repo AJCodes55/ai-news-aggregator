@@ -103,6 +103,6 @@ if __name__ == "__main__":
     else:
         print("Transcript not available for this video")
     channel_videos: List[ChannelVideo] = scraper.scrape_channel(
-        "UChpleBmo18P08aKCIgti38g", hours=200
+        "UChpleBmo18P08aKCIgti38g", hours=24
     )
     print(f"Found {len(channel_videos)} videos")

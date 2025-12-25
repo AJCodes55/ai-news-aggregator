@@ -59,9 +59,16 @@ class XScraper:
                     if not published_parsed:
                         continue
                     
-                    published_time = datetime(*published_parsed[:6], tzinfo=timezone.utc)
+                    # Parse the datetime from the parsed tuple
+                    # published_parsed is a time.struct_time tuple: (year, month, day, hour, minute, second, ...)
+                    # Ensure we handle timezone properly - feedparser typically provides UTC
+                    try:
+                        published_time = datetime(*published_parsed[:6], tzinfo=timezone.utc)
+                    except (TypeError, ValueError) as e:
+                        # Skip entries with invalid date format
+                        continue
                     
-                    # Only include posts from the last 24 hours
+                    # Only include posts from the last N hours (default: 24)
                     if published_time >= cutoff_time:
                         guid = entry.get("id", entry.get("link", ""))
                         if guid not in seen_guids:
@@ -108,7 +115,8 @@ if __name__ == "__main__":
     print("Starting X.com scraper...")
     print("="*60)
     
-    posts: List[XPost] = scraper.get_posts(hours=50)
+    # Get posts from the last 24 hours
+    posts: List[XPost] = scraper.get_posts(hours=24)
     
     print("="*60)
     print(f"Found {len(posts)} posts in the last 24 hours")

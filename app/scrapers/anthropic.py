@@ -64,6 +64,6 @@ class AnthropicScraper:
 
 if __name__ == "__main__":
     scraper = AnthropicScraper()
-    articles: List[AnthropicArticle] = scraper.get_articles(hours=200)
-    markdown: str = scraper.url_to_markdown(articles[0].url)
+    articles: List[AnthropicArticle] = scraper.get_articles(hours=24)
+   # markdown: str = scraper.url_to_markdown(articles[0].url)
     print(len(articles))

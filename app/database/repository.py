@@ -277,9 +277,19 @@ class Repository:
     
     def get_recent_digests(self, hours: int = 24) -> List[Dict[str, Any]]:
         cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-        digests = self.session.query(Digest).filter(
-            Digest.created_at >= cutoff_time
-        ).order_by(Digest.created_at.desc()).all()
+        # Handle both timezone-aware and naive datetimes from database
+        digests = self.session.query(Digest).order_by(Digest.created_at.desc()).all()
+        
+        # Filter in Python to handle timezone-aware/naive datetime comparisons
+        recent_digests = []
+        for d in digests:
+            created_at = d.created_at
+            # Convert naive datetime to timezone-aware if needed
+            if created_at and created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            # Compare with cutoff_time
+            if created_at and created_at >= cutoff_time:
+                recent_digests.append(d)
         
         return [
             {
@@ -291,5 +301,5 @@ class Repository:
                 "summary": d.summary,
                 "created_at": d.created_at
             }
-            for d in digests
+            for d in recent_digests
         ]

@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 import feedparser
-from docling.document_converter import DocumentConverter
+import requests
+from html_to_markdown import convert
 from pydantic import BaseModel
 
 
@@ -25,7 +26,6 @@ class XScraper:
             "AIatMeta": "https://rss.app/feeds/6tUN75HYDHwtfszj.xml",
             "GoogleDeepMind": "https://rss.app/feeds/XUhcVCEsFbmpnTjs.xml",
         }
-        self.converter = DocumentConverter()
 
     def get_posts(self, hours: int = 24) -> List[XPost]:
         """
@@ -95,7 +95,7 @@ class XScraper:
 
     def url_to_markdown(self, url: str) -> Optional[str]:
         """
-        Convert a X.com post URL to markdown using DocumentConverter.
+        Convert a X.com post URL to markdown using html_to_markdown.
         
         Args:
             url: URL of the X.com post
@@ -104,8 +104,11 @@ class XScraper:
             Markdown content as string, or None if conversion fails
         """
         try:
-            result = self.converter.convert(url)
-            return result.document.export_to_markdown()
+            response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+            response.raise_for_status()
+            html = response.text
+            markdown = convert(html)
+            return markdown
         except Exception:
             return None
 

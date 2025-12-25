@@ -144,4 +144,4 @@ if __name__ == "__main__":
         print("   1. Wait 5-10 minutes for your rate limit quota to reset")
         print("   2. Then try processing 1 article: python app/services/process_digest.py 1")
         print("   3. Wait 1-2 minutes between each batch")
-        print("   4. Check your rate limits at: https://platform.openai.com/account/limits")
+        print("   4. Check your rate limits at: https://aistudio.google.com/app/apikey")

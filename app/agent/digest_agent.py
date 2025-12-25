@@ -1,6 +1,7 @@
 import os
+import json
 from typing import Optional
-from openai import OpenAI
+import google.generativeai as genai
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -11,6 +12,7 @@ class DigestOutput(BaseModel):
     title: str
     summary: str
 
+
 PROMPT = """You are an expert AI news analyst specializing in summarizing technical articles, research papers, and video content about artificial intelligence.
 
 Your role is to create concise, informative digests that help readers quickly understand the key points and significance of AI-related content.
@@ -20,33 +22,47 @@ Guidelines:
 - Write a 2-3 sentence summary that highlights the main points and why they matter
 - Focus on actionable insights and implications
 - Use clear, accessible language while maintaining technical accuracy
-- Avoid marketing fluff - focus on substance"""
+- Avoid marketing fluff - focus on substance
+
+Always respond with valid JSON in this exact format:
+{
+  "title": "Your title here",
+  "summary": "Your summary here"
+}"""
 
 
 class DigestAgent:
     def __init__(self):
-        # Configure client with limited retries to avoid exhausting rate limits
-        # max_retries=0 means no automatic retries - we handle retries manually
-        self.client = OpenAI(
-            api_key=os.getenv("OPENAI_API_KEY"),
-            max_retries=0  # Disable automatic retries, handle manually
-        )
-        self.model = "gpt-4o-mini"
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY not found in environment variables")
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel("gemini-2.5-flash")
         self.system_prompt = PROMPT
 
     def generate_digest(self, title: str, content: str, article_type: str) -> Optional[DigestOutput]:
         try:
             user_prompt = f"Create a digest for this {article_type}: \n Title: {title} \n Content: {content[:8000]}"
-
-            response = self.client.responses.parse(
-                model=self.model,
-                instructions=self.system_prompt,
-                temperature=0.7,
-                input=user_prompt,
-                text_format=DigestOutput
+            
+            full_prompt = f"{self.system_prompt}\n\n{user_prompt}"
+            
+            response = self.model.generate_content(
+                full_prompt,
+                generation_config={
+                    "temperature": 0.7,
+                }
             )
             
-            return response.output_parsed
+            # Parse JSON from response
+            response_text = response.text.strip()
+            # Extract JSON if wrapped in markdown code blocks
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            result_dict = json.loads(response_text)
+            return DigestOutput(**result_dict)
         except Exception as e:
             # Let exceptions propagate so they can be handled upstream (e.g., rate limits)
             raise

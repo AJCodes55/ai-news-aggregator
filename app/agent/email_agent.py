@@ -1,7 +1,8 @@
 import os
+import json
 from datetime import datetime
 from typing import List, Optional
-from openai import OpenAI
+import google.generativeai as genai
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
@@ -59,13 +60,22 @@ Your role is to write a warm, professional introduction for a daily AI news dige
 - Highlights the most interesting or important themes
 - Sets expectations for the content ahead
 
-Keep it concise (2-3 sentences for the introduction), friendly, and professional."""
+Keep it concise (2-3 sentences for the introduction), friendly, and professional.
+
+Always respond with valid JSON in this exact format:
+{
+  "greeting": "Hey [Name], here is your daily digest of AI news for [Date].",
+  "introduction": "Your 2-3 sentence introduction here"
+}"""
 
 
 class EmailAgent:
     def __init__(self, user_profile: dict):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-4o-mini"
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY not found in environment variables")
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel("gemini-2.5-flash")
         self.user_profile = user_profile
 
     def generate_introduction(self, ranked_articles: List) -> EmailIntroduction:
@@ -87,18 +97,29 @@ class EmailAgent:
 Top 10 ranked articles:
 {article_summaries}
 
-Generate a greeting and introduction that previews these articles."""
+Generate a greeting and introduction that previews these articles. Return JSON format as specified."""
 
         try:
-            response = self.client.responses.parse(
-                model=self.model,
-                instructions=EMAIL_PROMPT,
-                temperature=0.7,
-                input=user_prompt,
-                text_format=EmailIntroduction
+            full_prompt = f"{EMAIL_PROMPT}\n\n{user_prompt}"
+            
+            response = self.model.generate_content(
+                full_prompt,
+                generation_config={
+                    "temperature": 0.7,
+                }
             )
             
-            intro = response.output_parsed
+            # Parse JSON from response
+            response_text = response.text.strip()
+            # Extract JSON if wrapped in markdown code blocks
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            result_dict = json.loads(response_text)
+            intro = EmailIntroduction(**result_dict)
+            
             if not intro.greeting.startswith(f"Hey {self.user_profile['name']}"):
                 intro.greeting = f"Hey {self.user_profile['name']}, here is your daily digest of AI news for {current_date}."
             

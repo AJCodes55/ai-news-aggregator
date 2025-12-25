@@ -1,6 +1,7 @@
 import os
+import json
 from typing import List
-from openai import OpenAI
+import google.generativeai as genai
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
@@ -36,13 +37,28 @@ Scoring Guidelines:
 - 3.0-4.9: Somewhat relevant, limited alignment, lower value
 - 0.0-2.9: Low relevance, minimal alignment, little value
 
-Rank articles from most relevant (rank 1) to least relevant. Ensure each article has a unique rank."""
+Rank articles from most relevant (rank 1) to least relevant. Ensure each article has a unique rank.
+
+Always respond with valid JSON in this exact format:
+{
+  "articles": [
+    {
+      "digest_id": "type:id",
+      "relevance_score": 8.5,
+      "rank": 1,
+      "reasoning": "Brief explanation"
+    }
+  ]
+}"""
 
 
 class CuratorAgent:
     def __init__(self, user_profile: dict):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-4.1"
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY not found in environment variables")
+        genai.configure(api_key=api_key)
+        self.model = genai.GenerativeModel("gemini-2.5-flash")
         self.user_profile = user_profile
         self.system_prompt = self._build_system_prompt()
 
@@ -77,18 +93,28 @@ Preferences:
 
 {digest_list}
 
-Provide a relevance score (0.0-10.0) and rank (1-{len(digests)}) for each article, ordered from most to least relevant."""
+Provide a relevance score (0.0-10.0) and rank (1-{len(digests)}) for each article, ordered from most to least relevant. Return JSON format as specified."""
 
         try:
-            response = self.client.responses.parse(
-                model=self.model,
-                instructions=self.system_prompt,
-                temperature=0.3,
-                input=user_prompt,
-                text_format=RankedDigestList
+            full_prompt = f"{self.system_prompt}\n\n{user_prompt}"
+            
+            response = self.model.generate_content(
+                full_prompt,
+                generation_config={
+                    "temperature": 0.3,
+                }
             )
             
-            ranked_list = response.output_parsed
+            # Parse JSON from response
+            response_text = response.text.strip()
+            # Extract JSON if wrapped in markdown code blocks
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            result_dict = json.loads(response_text)
+            ranked_list = RankedDigestList(**result_dict)
             return ranked_list.articles if ranked_list else []
         except Exception as e:
             # Let exceptions propagate so they can be handled upstream (e.g., rate limits)

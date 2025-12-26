@@ -5,6 +5,7 @@ from typing import List, Optional
 import google.generativeai as genai
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from app.agent.base import BaseAgent
 
 load_dotenv()
 
@@ -69,13 +70,9 @@ Always respond with valid JSON in this exact format:
 }"""
 
 
-class EmailAgent:
+class EmailAgent(BaseAgent):
     def __init__(self, user_profile: dict):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-2.5-flash")
+        super().__init__("gemini-2.5-flash")
         self.user_profile = user_profile
 
     def generate_introduction(self, ranked_articles: List) -> EmailIntroduction:

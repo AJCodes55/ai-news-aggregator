@@ -4,6 +4,7 @@ from typing import Optional
 import google.generativeai as genai
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from app.agent.base import BaseAgent
 
 load_dotenv()
 
@@ -13,7 +14,7 @@ class DigestOutput(BaseModel):
     summary: str
 
 
-PROMPT = """You are an expert AI news analyst specializing in summarizing technical articles, research papers, and video content about artificial intelligence.
+PROMPT = """You are an expert AI news analyst specializing in summarizing technical articles, research papers, video content, and social media posts (X.com/Twitter) about artificial intelligence.
 
 Your role is to create concise, informative digests that help readers quickly understand the key points and significance of AI-related content.
 
@@ -23,6 +24,7 @@ Guidelines:
 - Focus on actionable insights and implications
 - Use clear, accessible language while maintaining technical accuracy
 - Avoid marketing fluff - focus on substance
+- For social media posts, extract the key information and context
 
 Always respond with valid JSON in this exact format:
 {
@@ -31,13 +33,9 @@ Always respond with valid JSON in this exact format:
 }"""
 
 
-class DigestAgent:
+class DigestAgent(BaseAgent):
     def __init__(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel("gemini-2.5-flash")
+        super().__init__("gemini-2.5-flash")
         self.system_prompt = PROMPT
 
     def generate_digest(self, title: str, content: str, article_type: str) -> Optional[DigestOutput]:

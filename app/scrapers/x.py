@@ -1,31 +1,23 @@
-from datetime import datetime, timedelta, timezone
 from typing import List, Optional
-import feedparser
 import requests
 from html_to_markdown import convert
-from pydantic import BaseModel
+from .base import BaseScraper, Article
 
 
-class XPost(BaseModel):
-    title: str
-    description: str
-    url: str
-    guid: str
-    published_at: datetime
+class XPost(Article):
     author: str
-    category: Optional[str] = None
 
 
-class XScraper:
-    def __init__(self):
-        # Direct RSS feed URLs from rss.app
-        self.rss_feeds = {
-            "GoogleAI": "https://rss.app/feeds/fCifMnuCaCowLWra.xml",
-            "ollama": "https://rss.app/feeds/Q5rW7ItVWp4ku2hB.xml",
-            "NVIDIAAI": "https://rss.app/feeds/yi4TN3YdV6cdfaRy.xml",
-            "AIatMeta": "https://rss.app/feeds/6tUN75HYDHwtfszj.xml",
-            "GoogleDeepMind": "https://rss.app/feeds/XUhcVCEsFbmpnTjs.xml",
-        }
+class XScraper(BaseScraper):
+    @property
+    def rss_urls(self) -> List[str]:
+        return [
+            "https://rss.app/feeds/fCifMnuCaCowLWra.xml",  # GoogleAI
+            "https://rss.app/feeds/Q5rW7ItVWp4ku2hB.xml",  # ollama
+            "https://rss.app/feeds/yi4TN3YdV6cdfaRy.xml",  # NVIDIAAI
+            "https://rss.app/feeds/6tUN75HYDHwtfszj.xml",  # AIatMeta
+            "https://rss.app/feeds/XUhcVCEsFbmpnTjs.xml",  # GoogleDeepMind
+        ]
 
     def get_posts(self, hours: int = 24) -> List[XPost]:
         """
@@ -38,58 +30,44 @@ class XScraper:
         Returns:
             List of XPost objects filtered to last 24 hours
         """
-        now = datetime.now(timezone.utc)
-        cutoff_time = now - timedelta(hours=hours)
+        # Map RSS URLs to authors - needed because X posts need author info
+        url_to_author = {
+            "https://rss.app/feeds/fCifMnuCaCowLWra.xml": "GoogleAI",
+            "https://rss.app/feeds/Q5rW7ItVWp4ku2hB.xml": "ollama",
+            "https://rss.app/feeds/yi4TN3YdV6cdfaRy.xml": "NVIDIAAI",
+            "https://rss.app/feeds/6tUN75HYDHwtfszj.xml": "AIatMeta",
+            "https://rss.app/feeds/XUhcVCEsFbmpnTjs.xml": "GoogleDeepMind",
+        }
+        
+        # Get base articles using parent's get_articles method
+        base_articles = super().get_articles(hours)
+        
+        # Convert to XPost and assign authors based on URL patterns
         posts = []
         seen_guids = set()
         
-        for author, rss_url in self.rss_feeds.items():
-            try:
-                feed = feedparser.parse(rss_url)
-                
-                if not feed.entries:
-                    continue
-                
-                for entry in feed.entries:
-                    published_parsed = getattr(entry, "published_parsed", None)
-                    if not published_parsed:
-                        # Try other date fields
-                        published_parsed = getattr(entry, "updated_parsed", None)
-                    
-                    if not published_parsed:
-                        continue
-                    
-                    # Parse the datetime from the parsed tuple
-                    # published_parsed is a time.struct_time tuple: (year, month, day, hour, minute, second, ...)
-                    # Ensure we handle timezone properly - feedparser typically provides UTC
-                    try:
-                        published_time = datetime(*published_parsed[:6], tzinfo=timezone.utc)
-                    except (TypeError, ValueError) as e:
-                        # Skip entries with invalid date format
-                        continue
-                    
-                    # Only include posts from the last N hours (default: 24)
-                    if published_time >= cutoff_time:
-                        guid = entry.get("id", entry.get("link", ""))
-                        if guid not in seen_guids:
-                            seen_guids.add(guid)
-                            # Extract post content from title or description
-                            title = entry.get("title", "")
-                            description = entry.get("description", entry.get("summary", ""))
-                            
-                            posts.append(XPost(
-                                title=title,
-                                description=description,
-                                url=entry.get("link", ""),
-                                guid=guid,
-                                published_at=published_time,
-                                author=author,
-                                category=entry.get("tags", [{}])[0].get("term") if entry.get("tags") else None
-                            ))
-                        
-            except Exception as e:
-                print(f"Error fetching posts for {author}: {type(e).__name__} - {e}")
+        for article in base_articles:
+            guid = article.guid
+            if guid in seen_guids:
                 continue
+            seen_guids.add(guid)
+            
+            # Try to infer author from URL or assign default
+            # Since BaseScraper processes all URLs together, we can't easily track
+            # which URL an article came from, so we'll use a default or try to infer
+            author = "Unknown"
+            article_url = article.url if hasattr(article, 'url') else ''
+            
+            # Try to match author based on URL patterns (if RSS feed URLs appear in article URLs)
+            for rss_url, auth in url_to_author.items():
+                # Extract feed ID from RSS URL to match with article URLs
+                if any(keyword in article_url.lower() for keyword in [auth.lower()]):
+                    author = auth
+                    break
+            
+            article_dict = article.model_dump()
+            article_dict['author'] = author
+            posts.append(XPost(**article_dict))
         
         return posts
 
